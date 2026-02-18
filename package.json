@@ -1,0 +1,64 @@
+{
+  "name": "@wopr-network/wopr-plugin-imagegen",
+  "version": "1.0.0",
+  "description": "Image generation plugin for WOPR — DALL-E, Replicate, and more",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepublishOnly": "npm run build",
+    "lint": "biome check --config-path=. src/",
+    "lint:fix": "biome check --config-path=. --fix src/",
+    "format": "biome format --config-path=. --write src/",
+    "check": "biome check --config-path=. src/ && tsc --noEmit",
+    "test": "vitest run"
+  },
+  "keywords": [
+    "wopr",
+    "plugin",
+    "image",
+    "generation",
+    "dalle",
+    "openai",
+    "ai"
+  ],
+  "author": "WOPR",
+  "license": "MIT",
+  "wopr": {
+    "name": "wopr-plugin-imagegen",
+    "version": "1.0.0",
+    "description": "Image generation via DALL-E, Replicate, and more",
+    "requires": {
+      "capabilities": ["image-gen"]
+    },
+    "provides": {
+      "capabilities": [
+        {
+          "type": "image-gen",
+          "id": "wopr-imagegen-dalle",
+          "displayName": "Image Generation (DALL-E)",
+          "tier": "byok"
+        }
+      ]
+    }
+  },
+  "dependencies": {
+    "@wopr-network/plugin-types": "^0.2.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.3.15",
+    "@types/node": "^25.2.3",
+    "@vitest/coverage-istanbul": "^4.0.18",
+    "@vitest/ui": "^4.0.18",
+    "typescript": "^5.3.0",
+    "vitest": "^4.0.18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist"
+  ]
+}
