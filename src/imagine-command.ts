@@ -27,9 +27,7 @@ export async function handleImagineCommand(
 
   const maxLen = config.maxPromptLength ?? 1000;
   if (rawPrompt.length > maxLen) {
-    await cmdCtx.reply(
-      `Prompt is too long (${rawPrompt.length} chars). Maximum is ${maxLen} characters.`,
-    );
+    await cmdCtx.reply(`Prompt is too long (${rawPrompt.length} chars). Maximum is ${maxLen} characters.`);
     return;
   }
 
@@ -44,9 +42,7 @@ export async function handleImagineCommand(
 
   // Validate size format if provided
   if (request.size && !isValidSize(request.size)) {
-    await cmdCtx.reply(
-      `Invalid size format: "${request.size}". Use WxH format, e.g. 1024x1024`,
-    );
+    await cmdCtx.reply(`Invalid size format: "${request.size}". Use WxH format, e.g. 1024x1024`);
     return;
   }
 
@@ -77,9 +73,7 @@ export async function handleImagineCommand(
 
     if (parsed.error) {
       if (parsed.error === "insufficient_credits") {
-        await cmdCtx.reply(
-          "You need credits to generate images. Visit your WOPR dashboard to add credits.",
-        );
+        await cmdCtx.reply("You need credits to generate images. Visit your WOPR dashboard to add credits.");
       } else {
         await cmdCtx.reply(`Image generation failed: ${parsed.error}`);
       }
@@ -101,7 +95,7 @@ export async function handleImagineCommand(
  * Parse the response string from ctx.inject.
  * Handles JSON with imageUrl/error, plain URL, or text fallback.
  */
-function parseImagineResponse(response: string): ImagineResponse {
+export function parseImagineResponse(response: string): ImagineResponse {
   // Try JSON first
   try {
     const parsed = JSON.parse(response) as Record<string, unknown>;

@@ -1,5 +1,5 @@
 import { imagegenConfigSchema } from "./config-schema.js";
-import { handleImagineCommand } from "./imagine-command.js";
+import { handleImagineCommand, parseImagineResponse } from "./imagine-command.js";
 import type {
   A2AToolResult,
   ChannelCommand,
@@ -11,6 +11,7 @@ import type {
 
 let ctx: WOPRPluginContext | null = null;
 const registeredProviderIds: string[] = [];
+let unsubscribeAfterInit: (() => void) | null = null;
 
 const manifest: PluginManifest = {
   name: "@wopr-network/wopr-plugin-imagegen",
@@ -87,8 +88,7 @@ const plugin: WOPRPlugin = {
                 },
                 size: {
                   type: "string",
-                  description:
-                    "Image dimensions in WxH format (e.g. 1024x1024). Defaults to plugin config.",
+                  description: "Image dimensions in WxH format (e.g. 1024x1024). Defaults to plugin config.",
                 },
                 style: {
                   type: "string",
@@ -110,7 +110,13 @@ const plugin: WOPRPlugin = {
                 };
               }
 
-              const prompt = args.prompt as string;
+              const prompt = args.prompt;
+              if (typeof prompt !== "string" || !prompt) {
+                return {
+                  content: [{ type: "text", text: "prompt is required and must be a non-empty string" }],
+                  isError: true,
+                };
+              }
               const config = getConfig();
               const model = (args.model as string) ?? config.defaultModel ?? "flux";
               const size = (args.size as string) ?? config.defaultSize ?? "1024x1024";
@@ -130,42 +136,18 @@ const plugin: WOPRPlugin = {
                   from: "a2a:imagegen",
                 });
 
-                // Try JSON parse first
-                try {
-                  const parsed = JSON.parse(response) as Record<string, unknown>;
-                  const url =
-                    typeof parsed.imageUrl === "string"
-                      ? parsed.imageUrl
-                      : typeof parsed.url === "string"
-                        ? parsed.url
-                        : null;
-                  if (url) {
-                    return {
-                      content: [
-                        { type: "image", data: url, mimeType: "text/uri-list" },
-                        { type: "text", text: `Generated image: ${url}` },
-                      ],
-                    };
-                  }
-                  if (typeof parsed.error === "string") {
-                    return {
-                      content: [{ type: "text", text: `Error: ${parsed.error}` }],
-                      isError: true,
-                    };
-                  }
-                } catch {
-                  // Not JSON
+                const parsed = parseImagineResponse(response);
+                if (parsed.error) {
+                  return {
+                    content: [{ type: "text", text: `Error: ${parsed.error}` }],
+                    isError: true,
+                  };
                 }
-
-                // Check for URL in response text
-                const urlMatch = response.match(
-                  /https?:\/\/\S+\.(png|jpg|jpeg|gif|webp)(\?\S+)?/i,
-                );
-                if (urlMatch) {
+                if (parsed.imageUrl) {
                   return {
                     content: [
-                      { type: "image", data: urlMatch[0], mimeType: "text/uri-list" },
-                      { type: "text", text: `Generated image: ${urlMatch[0]}` },
+                      { type: "image", data: parsed.imageUrl, mimeType: "text/uri-list" },
+                      { type: "text", text: `Generated image: ${parsed.imageUrl}` },
                     ],
                   };
                 }
@@ -188,28 +170,22 @@ const plugin: WOPRPlugin = {
     const imagineCmd = buildImagineCommand();
     const providers = ctx.getChannelProviders?.() ?? [];
     for (const provider of providers) {
-      (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(
-        imagineCmd,
-      );
-      registeredProviderIds.push(
-        (provider as unknown as { id: string }).id,
-      );
-      ctx.log.info(
-        `Registered /imagine on channel provider: ${(provider as unknown as { id: string }).id}`,
-      );
+      (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(imagineCmd);
+      registeredProviderIds.push((provider as unknown as { id: string }).id);
+      ctx.log.info(`Registered /imagine on channel provider: ${(provider as unknown as { id: string }).id}`);
     }
 
     // 4. Listen for new channel providers (late-loading plugins)
     if (ctx.events) {
-      ctx.events.on("plugin:afterInit", () => {
+      unsubscribeAfterInit = ctx.events.on("plugin:afterInit", () => {
         if (!ctx) return;
         const currentProviders = ctx.getChannelProviders?.() ?? [];
         for (const provider of currentProviders) {
           const providerId = (provider as unknown as { id: string }).id;
           if (!registeredProviderIds.includes(providerId)) {
-            (
-              provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }
-            ).registerCommand(buildImagineCommand());
+            (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(
+              buildImagineCommand(),
+            );
             registeredProviderIds.push(providerId);
             ctx.log.info(`Late-registered /imagine on channel provider: ${providerId}`);
           }
@@ -221,13 +197,13 @@ const plugin: WOPRPlugin = {
   },
 
   async shutdown() {
+    unsubscribeAfterInit?.();
+    unsubscribeAfterInit = null;
     if (ctx) {
       const providers = ctx.getChannelProviders?.() ?? [];
       for (const provider of providers) {
         try {
-          (
-            provider as unknown as { unregisterCommand: (name: string) => void }
-          ).unregisterCommand("imagine");
+          (provider as unknown as { unregisterCommand: (name: string) => void }).unregisterCommand("imagine");
         } catch {
           // Provider may already be gone
         }
