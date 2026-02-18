@@ -1,5 +1,6 @@
 import { imagegenConfigSchema } from "./config-schema.js";
 import { handleImagineCommand, parseImagineResponse } from "./imagine-command.js";
+import { isValidSize } from "./prompt-parser.js";
 import type {
   A2AToolResult,
   ChannelCommand,
@@ -119,10 +120,38 @@ const plugin: WOPRPlugin = {
                 };
               }
               const config = getConfig();
-              const model = (args.model as string) ?? config.defaultModel ?? "flux";
-              const size = (args.size as string) ?? config.defaultSize ?? "1024x1024";
-              const style = (args.style as string) ?? config.defaultStyle ?? "auto";
-              const sessionId = (args.sessionId as string) ?? "imagegen:a2a";
+
+              const maxLen = config.maxPromptLength ?? 1000;
+              if (prompt.length > maxLen) {
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: `Prompt is too long (${prompt.length} chars). Maximum is ${maxLen} characters.`,
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+
+              const modelArg = typeof args.model === "string" ? args.model : undefined;
+              const sizeArg = typeof args.size === "string" ? args.size : undefined;
+              const styleArg = typeof args.style === "string" ? args.style : undefined;
+              const sessionIdArg = typeof args.sessionId === "string" ? args.sessionId : undefined;
+
+              if (sizeArg !== undefined && !isValidSize(sizeArg)) {
+                return {
+                  content: [
+                    { type: "text", text: `Invalid size format: "${sizeArg}". Use WxH format, e.g. 1024x1024` },
+                  ],
+                  isError: true,
+                };
+              }
+
+              const model = modelArg ?? config.defaultModel ?? "flux";
+              const size = sizeArg ?? config.defaultSize ?? "1024x1024";
+              const style = styleArg ?? config.defaultStyle ?? "auto";
+              const sessionId = sessionIdArg ?? "imagegen:a2a";
 
               const capabilityMessage = [
                 `[capability:image-generation]`,

@@ -181,13 +181,11 @@ describe("A2A imagine tool handler", () => {
       (c) => c[0] === "plugin:afterInit",
     );
     expect(eventsOnCall).toBeDefined();
-    if (eventsOnCall) {
-      const handler = eventsOnCall[1] as () => void;
-      handler();
-      expect(lateProvider.registerCommand).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "imagine" }),
-      );
-    }
+    const handler = eventsOnCall![1] as () => void;
+    handler();
+    expect(lateProvider.registerCommand).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "imagine" }),
+    );
 
     await plugin.shutdown!();
   });
