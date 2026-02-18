@@ -176,7 +176,11 @@ const plugin: WOPRPlugin = {
                 if (parsed.imageUrl) {
                   return {
                     content: [
-                      { type: "image", data: parsed.imageUrl, mimeType: "image/png" },
+                      { url: parsed.imageUrl, mediaType: "image/png" } as unknown as {
+                        type: "image";
+                        data?: string;
+                        mimeType?: string;
+                      },
                       { type: "text", text: `Generated image: ${parsed.imageUrl}` },
                     ],
                   };
