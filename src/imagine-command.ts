@@ -25,18 +25,18 @@ export async function handleImagineCommand(
     return;
   }
 
-  const maxLen = config.maxPromptLength ?? 1000;
-  if (rawPrompt.length > maxLen) {
-    await cmdCtx.reply(`Prompt is too long (${rawPrompt.length} chars). Maximum is ${maxLen} characters.`);
-    return;
-  }
-
   const request = parseImaginePrompt(rawPrompt);
 
   if (!request.prompt) {
     await cmdCtx.reply(
       "Could not extract a prompt from your message. Please provide a description of the image you want.",
     );
+    return;
+  }
+
+  const maxLen = config.maxPromptLength ?? 1000;
+  if (request.prompt.length > maxLen) {
+    await cmdCtx.reply(`Prompt is too long (${request.prompt.length} chars). Maximum is ${maxLen} characters.`);
     return;
   }
 
