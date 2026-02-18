@@ -180,6 +180,7 @@ describe("A2A imagine tool handler", () => {
     const eventsOnCall = vi.mocked(mockCtx.events.on).mock.calls.find(
       (c) => c[0] === "plugin:afterInit",
     );
+    expect(eventsOnCall).toBeDefined();
     if (eventsOnCall) {
       const handler = eventsOnCall[1] as () => void;
       handler();

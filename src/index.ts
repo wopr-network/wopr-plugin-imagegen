@@ -3,6 +3,7 @@ import { handleImagineCommand, parseImagineResponse } from "./imagine-command.js
 import type {
   A2AToolResult,
   ChannelCommand,
+  ChannelProvider,
   ImageGenConfig,
   PluginManifest,
   WOPRPlugin,
@@ -146,7 +147,7 @@ const plugin: WOPRPlugin = {
                 if (parsed.imageUrl) {
                   return {
                     content: [
-                      { type: "image", data: parsed.imageUrl, mimeType: "text/uri-list" },
+                      { type: "image", data: parsed.imageUrl, mimeType: "image/png" },
                       { type: "text", text: `Generated image: ${parsed.imageUrl}` },
                     ],
                   };
@@ -170,9 +171,12 @@ const plugin: WOPRPlugin = {
     const imagineCmd = buildImagineCommand();
     const providers = ctx.getChannelProviders?.() ?? [];
     for (const provider of providers) {
-      (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(imagineCmd);
-      registeredProviderIds.push((provider as unknown as { id: string }).id);
-      ctx.log.info(`Registered /imagine on channel provider: ${(provider as unknown as { id: string }).id}`);
+      const p = provider as ChannelProvider;
+      if ("registerCommand" in p && typeof p.registerCommand === "function") {
+        p.registerCommand(imagineCmd);
+        registeredProviderIds.push(p.id);
+        ctx.log.info(`Registered /imagine on channel provider: ${p.id}`);
+      }
     }
 
     // 4. Listen for new channel providers (late-loading plugins)
@@ -181,13 +185,14 @@ const plugin: WOPRPlugin = {
         if (!ctx) return;
         const currentProviders = ctx.getChannelProviders?.() ?? [];
         for (const provider of currentProviders) {
-          const providerId = (provider as unknown as { id: string }).id;
-          if (!registeredProviderIds.includes(providerId)) {
-            (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(
-              buildImagineCommand(),
-            );
-            registeredProviderIds.push(providerId);
-            ctx.log.info(`Late-registered /imagine on channel provider: ${providerId}`);
+          const p = provider as ChannelProvider;
+          if ("registerCommand" in p && typeof p.registerCommand === "function") {
+            const providerId = p.id;
+            if (!registeredProviderIds.includes(providerId)) {
+              p.registerCommand(buildImagineCommand());
+              registeredProviderIds.push(providerId);
+              ctx.log.info(`Late-registered /imagine on channel provider: ${providerId}`);
+            }
           }
         }
       });
@@ -203,7 +208,10 @@ const plugin: WOPRPlugin = {
       const providers = ctx.getChannelProviders?.() ?? [];
       for (const provider of providers) {
         try {
-          (provider as unknown as { unregisterCommand: (name: string) => void }).unregisterCommand("imagine");
+          const p = provider as ChannelProvider;
+          if ("unregisterCommand" in p && typeof p.unregisterCommand === "function") {
+            p.unregisterCommand("imagine");
+          }
         } catch {
           // Provider may already be gone
         }
