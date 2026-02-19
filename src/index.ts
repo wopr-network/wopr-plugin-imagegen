@@ -1,8 +1,10 @@
 import { imagegenConfigSchema } from "./config-schema.js";
 import { handleImagineCommand, parseImagineResponse } from "./imagine-command.js";
+import { isValidSize } from "./prompt-parser.js";
 import type {
   A2AToolResult,
   ChannelCommand,
+  ChannelProvider,
   ImageGenConfig,
   PluginManifest,
   WOPRPlugin,
@@ -118,10 +120,38 @@ const plugin: WOPRPlugin = {
                 };
               }
               const config = getConfig();
-              const model = (args.model as string) ?? config.defaultModel ?? "flux";
-              const size = (args.size as string) ?? config.defaultSize ?? "1024x1024";
-              const style = (args.style as string) ?? config.defaultStyle ?? "auto";
-              const sessionId = (args.sessionId as string) ?? "imagegen:a2a";
+
+              const maxLen = config.maxPromptLength ?? 1000;
+              if (prompt.length > maxLen) {
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: `Prompt is too long (${prompt.length} chars). Maximum is ${maxLen} characters.`,
+                    },
+                  ],
+                  isError: true,
+                };
+              }
+
+              const modelArg = typeof args.model === "string" ? args.model : undefined;
+              const sizeArg = typeof args.size === "string" ? args.size : undefined;
+              const styleArg = typeof args.style === "string" ? args.style : undefined;
+              const sessionIdArg = typeof args.sessionId === "string" ? args.sessionId : undefined;
+
+              if (sizeArg !== undefined && !isValidSize(sizeArg)) {
+                return {
+                  content: [
+                    { type: "text", text: `Invalid size format: "${sizeArg}". Use WxH format, e.g. 1024x1024` },
+                  ],
+                  isError: true,
+                };
+              }
+
+              const model = modelArg ?? config.defaultModel ?? "flux";
+              const size = sizeArg ?? config.defaultSize ?? "1024x1024";
+              const style = styleArg ?? config.defaultStyle ?? "auto";
+              const sessionId = sessionIdArg ?? "imagegen:a2a";
 
               const capabilityMessage = [
                 `[capability:image-generation]`,
@@ -146,7 +176,11 @@ const plugin: WOPRPlugin = {
                 if (parsed.imageUrl) {
                   return {
                     content: [
-                      { type: "image", data: parsed.imageUrl, mimeType: "text/uri-list" },
+                      { url: parsed.imageUrl, mediaType: "image/png" } as unknown as {
+                        type: "image";
+                        data?: string;
+                        mimeType?: string;
+                      },
                       { type: "text", text: `Generated image: ${parsed.imageUrl}` },
                     ],
                   };
@@ -170,9 +204,12 @@ const plugin: WOPRPlugin = {
     const imagineCmd = buildImagineCommand();
     const providers = ctx.getChannelProviders?.() ?? [];
     for (const provider of providers) {
-      (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(imagineCmd);
-      registeredProviderIds.push((provider as unknown as { id: string }).id);
-      ctx.log.info(`Registered /imagine on channel provider: ${(provider as unknown as { id: string }).id}`);
+      const p = provider as ChannelProvider;
+      if ("registerCommand" in p && typeof p.registerCommand === "function") {
+        p.registerCommand(imagineCmd);
+        registeredProviderIds.push(p.id);
+        ctx.log.info(`Registered /imagine on channel provider: ${p.id}`);
+      }
     }
 
     // 4. Listen for new channel providers (late-loading plugins)
@@ -181,13 +218,14 @@ const plugin: WOPRPlugin = {
         if (!ctx) return;
         const currentProviders = ctx.getChannelProviders?.() ?? [];
         for (const provider of currentProviders) {
-          const providerId = (provider as unknown as { id: string }).id;
-          if (!registeredProviderIds.includes(providerId)) {
-            (provider as unknown as { registerCommand: (cmd: ChannelCommand) => void }).registerCommand(
-              buildImagineCommand(),
-            );
-            registeredProviderIds.push(providerId);
-            ctx.log.info(`Late-registered /imagine on channel provider: ${providerId}`);
+          const p = provider as ChannelProvider;
+          if ("registerCommand" in p && typeof p.registerCommand === "function") {
+            const providerId = p.id;
+            if (!registeredProviderIds.includes(providerId)) {
+              p.registerCommand(buildImagineCommand());
+              registeredProviderIds.push(providerId);
+              ctx.log.info(`Late-registered /imagine on channel provider: ${providerId}`);
+            }
           }
         }
       });
@@ -203,7 +241,10 @@ const plugin: WOPRPlugin = {
       const providers = ctx.getChannelProviders?.() ?? [];
       for (const provider of providers) {
         try {
-          (provider as unknown as { unregisterCommand: (name: string) => void }).unregisterCommand("imagine");
+          const p = provider as ChannelProvider;
+          if ("unregisterCommand" in p && typeof p.unregisterCommand === "function") {
+            p.unregisterCommand("imagine");
+          }
         } catch {
           // Provider may already be gone
         }
