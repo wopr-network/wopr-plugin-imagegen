@@ -32,17 +32,10 @@
     "version": "1.0.0",
     "description": "Image generation via DALL-E, Replicate, and more",
     "requires": {
-      "capabilities": ["image-gen"]
+      "capabilities": ["image-generation"]
     },
     "provides": {
-      "capabilities": [
-        {
-          "type": "image-gen",
-          "id": "wopr-imagegen-dalle",
-          "displayName": "Image Generation (DALL-E)",
-          "tier": "byok"
-        }
-      ]
+      "capabilities": []
     }
   },
   "dependencies": {

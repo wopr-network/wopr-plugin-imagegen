@@ -6,7 +6,7 @@ export function parseImaginePrompt(raw: string): ImagineRequest {
   const flags: Record<string, string> = {};
 
   const cleaned = raw.replace(/--([\w]+)\s+(\S+)/g, (match, key: string, value: string) => {
-    if (KNOWN_FLAGS.has(key)) {
+    if (KNOWN_FLAGS.has(key) && !value.startsWith("--")) {
       flags[key] = value;
       return "";
     }
