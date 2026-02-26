@@ -13,7 +13,7 @@ import type {
 
 let ctx: WOPRPluginContext | null = null;
 const registeredProviderIds: string[] = [];
-let unsubscribeAfterInit: (() => void) | null = null;
+const cleanups: (() => void)[] = [];
 
 const manifest: PluginManifest = {
   name: "@wopr-network/wopr-plugin-imagegen",
@@ -28,7 +28,14 @@ const manifest: PluginManifest = {
     },
   },
   provides: {
-    capabilities: [],
+    capabilities: [
+      {
+        type: "image-gen",
+        id: "wopr-imagegen-dalle",
+        displayName: "Image Generation (DALL-E)",
+        tier: "byok",
+      },
+    ],
   },
   icon: "palette",
   category: "creative",
@@ -37,6 +44,7 @@ const manifest: PluginManifest = {
     shutdownBehavior: "drain",
     shutdownTimeoutMs: 30_000,
   },
+  configSchema: imagegenConfigSchema,
 };
 
 function getConfig(): ImageGenConfig {
@@ -65,9 +73,13 @@ const plugin: WOPRPlugin = {
 
     // 1. Register config schema
     ctx.registerConfigSchema("wopr-plugin-imagegen", imagegenConfigSchema);
+    cleanups.push(() => ctx?.unregisterConfigSchema?.("wopr-plugin-imagegen"));
 
     // 2. Register A2A tools
     if (ctx.registerA2AServer) {
+      cleanups.push(() =>
+        (ctx as unknown as { unregisterA2AServer?: (name: string) => void })?.unregisterA2AServer?.("imagegen"),
+      );
       ctx.registerA2AServer({
         name: "imagegen",
         version: "1.0",
@@ -187,9 +199,9 @@ const plugin: WOPRPlugin = {
                 }
 
                 return { content: [{ type: "text", text: response }] };
-              } catch (err) {
+              } catch (error: unknown) {
                 return {
-                  content: [{ type: "text", text: `Image generation failed: ${err}` }],
+                  content: [{ type: "text", text: `Image generation failed: ${error}` }],
                   isError: true,
                 };
               }
@@ -214,7 +226,7 @@ const plugin: WOPRPlugin = {
 
     // 4. Listen for new channel providers (late-loading plugins)
     if (ctx.events) {
-      unsubscribeAfterInit = ctx.events.on("plugin:afterInit", () => {
+      const unsub = ctx.events.on("plugin:afterInit", () => {
         if (!ctx) return;
         const currentProviders = ctx.getChannelProviders?.() ?? [];
         for (const provider of currentProviders) {
@@ -229,14 +241,22 @@ const plugin: WOPRPlugin = {
           }
         }
       });
+      cleanups.push(unsub);
     }
 
     ctx.log.info("ImageGen plugin initialized");
   },
 
   async shutdown() {
-    unsubscribeAfterInit?.();
-    unsubscribeAfterInit = null;
+    for (const cleanup of cleanups) {
+      try {
+        cleanup();
+      } catch (_error: unknown) {
+        // Cleanup may fail if provider is already gone
+      }
+    }
+    cleanups.length = 0;
+
     if (ctx) {
       const providers = ctx.getChannelProviders?.() ?? [];
       for (const provider of providers) {
@@ -245,7 +265,7 @@ const plugin: WOPRPlugin = {
           if ("unregisterCommand" in p && typeof p.unregisterCommand === "function") {
             p.unregisterCommand("imagine");
           }
-        } catch {
+        } catch (_error: unknown) {
           // Provider may already be gone
         }
       }

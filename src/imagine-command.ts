@@ -85,8 +85,8 @@ export async function handleImagineCommand(
     } else {
       await cmdCtx.reply(response || "Image generation completed but no image was returned.");
     }
-  } catch (err) {
-    pluginCtx.log.error("Image generation failed", err);
+  } catch (error: unknown) {
+    pluginCtx.log.error("Image generation failed", error);
     await cmdCtx.reply("Something went wrong generating your image. Please try again.");
   }
 }
