@@ -32,6 +32,10 @@
     "name": "wopr-plugin-imagegen",
     "version": "1.0.0",
     "description": "Image generation via DALL-E, Replicate, and more",
+    "category": "image",
+    "lifecycle": {
+      "shutdownBehavior": "graceful"
+    },
     "requires": {
       "capabilities": [
         "image-generation"
