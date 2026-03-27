@@ -1,3 +1,11 @@
+# ⚠️ This package has moved
+
+This package is now maintained in the [wopr-plugins monorepo](https://github.com/wopr-network/wopr-plugins/tree/main/packages/plugin-imagegen).
+
+This repository is archived and no longer accepts contributions.
+
+---
+
 # @wopr-network/wopr-plugin-imagegen
 
 > AI image generation plugin for WOPR — use `/imagine` in any channel to generate images via DALL-E, Replicate, and more.
